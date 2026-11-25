@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ศึกหาคู่ตัวประกอบ</title>
+<style>
+/* layout idea: graph-paper page, one centered worksheet card, timer strip with three colored score zones */
+:root {
+  --paper: #eef3f9;
+  --grid: #d3deec;
+  --ink: #14213d;
+  --ink-soft: #52607a;
+  --card: #ffffff;
+  --accent: #e4572e;
+  --good: #1b9a59;
+  --mid: #f0a202;
+  --bad: #d62839;
+  --font: Tahoma, "Leelawadee UI", "Thonburi", "Noto Sans Thai", "Noto Sans Thai UI", "Sarabun", system-ui, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 18px;
+  line-height: 1.5;
+}
+main { max-width: 560px; margin: 0 auto; padding: 24px 16px 48px; }
+h1, h2, p { margin: 0; text-wrap: balance; }
+.card {
+  background: var(--card);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: 24px 20px;
+}
+.hidden { display: none !important; }
+button {
+  font-family: var(--font);
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--accent);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 10px 24px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition: transform .08s, box-shadow .08s;
+}
+button:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
+button:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--mid); outline-offset: 2px; }
+
+/* start screen */
+.title { font-size: 44px; font-weight: 800; line-height: 1.15; }
+.sub { color: var(--ink-soft); margin-top: 8px; }
+.poly-demo { font-size: 24px; font-weight: 600; margin: 20px 0 4px; }
+table.pts { width: 100%; border-collapse: collapse; margin: 18px 0 22px; font-variant-numeric: tabular-nums; }
+table.pts td { padding: 8px 4px; border-bottom: 1px dashed var(--grid); }
+table.pts td:last-child { text-align: right; font-weight: 800; font-size: 22px; }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; border: 2px solid var(--ink); }
+
+/* hud */
+.hud { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; font-weight: 600; }
+.hud b { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.zones { position: relative; display: flex; height: 18px; border: 2px solid var(--ink); border-radius: 9px; overflow: hidden; margin-bottom: 6px; }
+.zones span:nth-child(1) { width: 25%; background: var(--good); }
+.zones span:nth-child(2) { width: 25%; background: var(--mid); }
+.zones span:nth-child(3) { width: 50%; background: var(--accent); }
+.needle { position: absolute; top: -4px; bottom: -4px; width: 4px; margin-left: -2px; background: var(--ink); border-radius: 2px; left: 0; }
+.zone-labels { display: flex; font-size: 14px; color: var(--ink-soft); margin-bottom: 14px; font-variant-numeric: tabular-nums; }
+.zone-labels span:nth-child(1), .zone-labels span:nth-child(2) { width: 25%; }
+.zone-labels span:nth-child(3) { width: 50%; }
+.timebox { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.clock { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.worth { font-weight: 800; padding: 4px 14px; border: 2px solid var(--ink); border-radius: 999px; color: #fff; font-variant-numeric: tabular-nums; }
+.worth.w10 { background: var(--good); }
+.worth.w5 { background: var(--mid); color: var(--ink); }
+.worth.w3 { background: var(--accent); }
+.worth.w0 { background: var(--ink-soft); }
+
+/* question */
+.clues { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+.clue { border: 2px solid var(--ink); border-radius: 10px; padding: 8px 12px; text-align: center; }
+.clue small { display: block; color: var(--ink-soft); font-size: 15px; }
+.clue strong { font-size: 42px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.clue.sum { background: #fff4d6; }
+.clue.prod { background: #e3f2ff; }
+.poly { font-size: 26px; font-weight: 600; text-align: center; margin-bottom: 14px; font-variant-numeric: tabular-nums; }
+.answer-row { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; font-size: 28px; font-weight: 600; }
+.answer-row input {
+  width: 110px; height: 64px;
+  font-family: var(--font); font-size: 34px; font-weight: 800; text-align: center;
+  color: var(--ink); background: #fff;
+  border: 2px solid var(--ink); border-radius: 10px;
+  -moz-appearance: textfield;
+}
+.answer-row input::-webkit-outer-spin-button, .answer-row input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.actions { display: flex; justify-content: center; margin-top: 20px; }
+.feedback { margin-top: 18px; min-height: 76px; text-align: center; }
+.msg { font-size: 22px; font-weight: 800; }
+.msg.ok { color: var(--good); }
+.msg.no { color: var(--bad); }
+.msg.late { color: var(--ink); }
+.detail { font-size: 17px; color: var(--ink-soft); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.field { display: flex; align-items: center; gap: 6px; }
+button.sign { width: 48px; height: 64px; padding: 0; font-size: 30px; line-height: 1; color: var(--ink); background: #fff; box-shadow: 2px 2px 0 var(--ink); }
+.hintline { margin-top: 8px; font-size: 15px; }
+.shake { animation: shake .35s; }
+@keyframes shake { 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-5px); } }
+.pop { animation: pop .35s; }
+@keyframes pop { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .shake, .pop { animation: none; } button { transition: none; } }
+
+/* result */
+.big-score { font-size: 80px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.big-score small { font-size: 28px; color: var(--ink-soft); font-weight: 600; }
+.rank { font-size: 26px; font-weight: 800; margin: 8px 0 16px; color: var(--accent); }
+table.log { width: 100%; border-collapse: collapse; margin-bottom: 22px; font-variant-numeric: tabular-nums; font-size: 17px; }
+table.log th { text-align: left; font-weight: 600; color: var(--ink-soft); font-size: 15px; padding: 4px; border-bottom: 2px solid var(--ink); }
+table.log td { padding: 7px 4px; border-bottom: 1px dashed var(--grid); }
+table.log td:last-child, table.log th:last-child { text-align: right; }
+.center { text-align: center; }
+.level { margin-left: 6px; font-size: 14px; padding: 2px 10px; border: 2px solid var(--ink); border-radius: 999px; background: #fff4d6; }
+.level.x2 { background: var(--accent); color: #fff; }
+.fs { border: 0; padding: 0; margin: 0 0 14px; }
+.fs legend, label.fl { font-weight: 600; padding: 0; margin-bottom: 6px; display: block; }
+.grades { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.pausebtn { font-size: 16px; padding: 4px 12px; color: var(--ink); background: #fff; box-shadow: 2px 2px 0 var(--ink); white-space: nowrap; }
+.pausebtn:disabled { opacity: .45; cursor: default; transform: none; }
+.playarea { position: relative; }
+.pause-ov { position: absolute; inset: 0; z-index: 2; background: var(--card); border: 2px dashed var(--ink); border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 150px; }
+.pause-ov .big { font-size: 28px; font-weight: 800; }
+.pause-ov p { margin: 0; color: var(--ink-soft); font-size: 16px; }
+button.gbtn { font-size: 18px; padding: 8px 0; color: var(--ink); background: #fff; box-shadow: 2px 2px 0 var(--ink); }
+button.gbtn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.tx { width: 100%; height: 48px; font-family: var(--font); font-size: 20px; color: var(--ink); background: #fff; border: 2px solid var(--ink); border-radius: 10px; padding: 0 12px; margin-bottom: 14px; }
+.opt { color: var(--ink-soft); font-weight: 400; }
+.send { text-align: center; font-size: 16px; color: var(--ink-soft); min-height: 24px; margin: 0 0 12px; }
+.send.fail { color: var(--bad); font-weight: 600; }
+.ask { font-size: 24px; font-weight: 800; text-align: center; margin-bottom: 14px; }
+.choices { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+button.ghost { background: #fff; color: var(--ink); }
+@media (max-width: 420px) {
+  .title { font-size: 36px; }
+  .answer-row { font-size: 24px; }
+  .answer-row input { width: 78px; }
+}
+@media (max-width: 480px) {
+  body { font-size: 16px; }
+  main { padding: 10px 10px 16px; }
+  .card { padding: 14px 12px; box-shadow: 4px 4px 0 var(--ink); border-radius: 12px; }
+  .title { font-size: 30px; }
+  .poly-demo { font-size: 20px; margin: 10px 0 2px; }
+  table.pts { margin: 8px 0 12px; }
+  table.pts td { padding: 5px 4px; font-size: 16px; }
+  table.pts td:last-child { font-size: 18px; }
+  .hud { margin-bottom: 6px; font-size: 15px; }
+  .hud b { font-size: 20px; }
+  .level { font-size: 12px; padding: 1px 8px; }
+  .timebox { margin-bottom: 8px; }
+  .clock { font-size: 30px; }
+  .worth { font-size: 14px; padding: 2px 10px; }
+  .zones { height: 12px; margin-bottom: 4px; }
+  .needle { top: -3px; bottom: -3px; }
+  .zone-labels { font-size: 12px; margin-bottom: 8px; }
+  .clues { gap: 8px; margin-bottom: 8px; }
+  .clue { padding: 4px 8px; }
+  .clue small { font-size: 13px; }
+  .clue strong { font-size: 30px; }
+  .poly { font-size: 20px; margin-bottom: 8px; }
+  .answer-row { font-size: 18px; gap: 6px; flex-wrap: nowrap; }
+  .answer-row input { width: 64px; height: 48px; font-size: 24px; }
+  button.sign { width: 38px; height: 48px; font-size: 24px; }
+  .hintline { margin-top: 4px; font-size: 13px; }
+  .actions { margin-top: 8px; }
+  button { font-size: 18px; padding: 7px 18px; }
+  .feedback { margin-top: 8px; min-height: 52px; }
+  .msg { font-size: 18px; }
+  .detail { font-size: 14px; }
+  .big-score { font-size: 52px; }
+  .big-score small { font-size: 20px; }
+  .rank { font-size: 20px; margin: 4px 0 8px; }
+  table.log { font-size: 14px; margin-bottom: 12px; }
+  table.log td { padding: 4px; }
+  .ask { font-size: 20px; margin-bottom: 8px; }
+  .fs { margin-bottom: 10px; }
+  .tx { height: 42px; font-size: 18px; margin-bottom: 8px; }
+  .grades { grid-template-columns: repeat(6, 1fr); gap: 5px; }
+  button.gbtn { font-size: 16px; padding: 6px 0; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<section id="start" class="card">
+  <h1 class="title">ศึกหาคู่ตัวประกอบ</h1>
+  <p class="sub">หาเลข 2 จำนวนที่คูณกันได้ c และบวกกันได้ b ให้ทันเวลา</p>
+  <p class="poly-demo">x² + bx + c</p>
+  <p class="sub">ชุดที่ 1 เป็นเลขบวกทั้งหมด ชุดที่ 2 เป็นต้นไปมีเลขบวกและเลขลบปนกัน และได้คะแนน 2 เท่า</p>
+  <table class="pts" aria-label="เกณฑ์คะแนน">
+    <tr><td><span class="dot" style="background:var(--good)"></span>ตอบถูกภายใน 5 วินาที</td><td>10 / 20 คะแนน</td></tr>
+    <tr><td><span class="dot" style="background:var(--mid)"></span>ตอบถูกในวินาทีที่ 5 ถึง 10</td><td>5 / 10 คะแนน</td></tr>
+    <tr><td><span class="dot" style="background:var(--accent)"></span>ตอบถูกในวินาทีที่ 10 ถึง 20</td><td>3 / 6 คะแนน</td></tr>
+  </table>
+  <p class="sub" style="margin-bottom:20px">คะแนนคู่ซ้ายใช้ในชุดที่ 1 คู่ขวาใช้ตั้งแต่ชุดที่ 2 พักเกมได้ชุดละ 3 ครั้ง (ตอนพักโจทย์จะถูกซ่อน) ข้อละ 20 วินาที ชุดละ 10 ข้อ สุ่มคละกัน ชุดที่ 1 เต็ม 100 ชุดที่ 2 เต็ม 200 เล่นต่อได้เรื่อยๆ ทีละชุด</p>
+  <div class="center"><button id="btnStart" type="button">ต่อไป</button></div>
+</section>
+
+<section id="register" class="card hidden">
+  <h2 class="title" style="font-size:34px">ก่อนเริ่มเล่น</h2>
+  <p class="sub" style="margin-bottom:18px">กรอกข้อมูลให้ครบ เพื่อให้ครูบันทึกคะแนนของเธอ</p>
+  <form id="regForm" novalidate>
+    <fieldset class="fs">
+      <legend>ระดับชั้น</legend>
+      <div class="grades" id="grades" role="group" aria-label="ระดับชั้น">
+        <button type="button" class="gbtn" data-g="ม.1" aria-pressed="false">ม.1</button>
+        <button type="button" class="gbtn" data-g="ม.2" aria-pressed="false">ม.2</button>
+        <button type="button" class="gbtn" data-g="ม.3" aria-pressed="false">ม.3</button>
+        <button type="button" class="gbtn" data-g="ม.4" aria-pressed="false">ม.4</button>
+        <button type="button" class="gbtn" data-g="ม.5" aria-pressed="false">ม.5</button>
+        <button type="button" class="gbtn" data-g="ม.6" aria-pressed="false">ม.6</button>
+      </div>
+    </fieldset>
+    <label class="fl" for="room">ห้อง</label>
+    <input class="tx" id="room" type="text" maxlength="10" placeholder="เช่น 2 หรือ 1/3" autocomplete="off">
+    <label class="fl" for="fullName">ชื่อจริง</label>
+    <input class="tx" id="fullName" type="text" maxlength="40" autocomplete="off">
+    <label class="fl" for="nick">ชื่อเล่น <span class="opt">(ไม่บังคับ)</span></label>
+    <input class="tx" id="nick" type="text" maxlength="20" autocomplete="off">
+    <label class="fl" for="stuNo">เลขที่ <span class="opt">(ไม่บังคับ)</span></label>
+    <input class="tx" id="stuNo" type="number" inputmode="numeric" min="1" max="99" autocomplete="off">
+    <p class="msg no center" id="regErr" role="alert" style="min-height:30px"></p>
+    <div class="center"><button type="submit" id="btnGo">เริ่มเล่น</button></div>
+  </form>
+</section>
+
+<section id="game" class="card hidden">
+  <div class="hud">
+    <span>ชุด <b id="setNo">1</b> ข้อ <b id="qNo">1</b> / 10 <span class="level" id="level">ง่าย</span> <span class="level x2 hidden" id="mult">คะแนน ×2</span></span>
+    <span>คะแนน <b id="score">0</b></span>
+  </div>
+  <div class="timebox">
+    <div class="clock" id="clock" aria-live="off">20.0</div>
+    <button type="button" class="pausebtn" id="btnPause">พัก (3)</button>
+    <div class="worth w10" id="worth">ตอนนี้ได้ 10 คะแนน</div>
+  </div>
+  <div class="zones" aria-hidden="true">
+    <span></span><span></span><span></span>
+    <div class="needle" id="needle"></div>
+  </div>
+  <div class="zone-labels" aria-hidden="true"><span id="zl1">10 คะแนน</span><span id="zl2">5 คะแนน</span><span id="zl3">3 คะแนน</span></div>
+
+  <div class="playarea" id="playarea">
+  <div class="clues">
+    <div class="clue prod"><small>คูณกันได้ (c)</small><strong id="cVal">0</strong></div>
+    <div class="clue sum"><small>บวกกันได้ (b)</small><strong id="bVal">0</strong></div>
+  </div>
+  <p class="poly" id="poly">x² + 0x + 0</p>
+
+  <div class="answer-row" id="answerRow">
+    <div class="field">
+      <input id="m" type="text" inputmode="numeric" maxlength="3" aria-label="เลขตัวที่ 1" autocomplete="off">
+      <button type="button" class="sign" data-for="m" aria-label="สลับเครื่องหมายลบของเลขตัวที่ 1">−</button>
+    </div>
+    <span>และ</span>
+    <div class="field">
+      <input id="n" type="text" inputmode="numeric" maxlength="3" aria-label="เลขตัวที่ 2" autocomplete="off">
+      <button type="button" class="sign" data-for="n" aria-label="สลับเครื่องหมายลบของเลขตัวที่ 2">−</button>
+    </div>
+  </div>
+  <p class="sub center hintline">เลขติดลบ กดปุ่ม − ข้างช่อง</p>
+  <div class="actions"><button id="btnCheck" type="button">ตรวจคำตอบ</button></div>
+  <div class="pause-ov hidden" id="pauseOv" role="status">
+      <div class="big">พักเกม</div>
+      <p>เวลาหยุดนับแล้ว โจทย์ถูกซ่อนไว้</p>
+      <button type="button" id="pauseResume">เล่นต่อ</button>
+    </div>
+  </div>
+  <div class="feedback" id="feedback" aria-live="polite"></div>
+</section>
+
+<section id="result" class="card hidden">
+  <p class="sub">สรุปผลชุดที่ <span id="resSet">1</span></p>
+  <div class="big-score"><span id="finalScore">0</span> <small>/ <span id="maxScore">100</span></small></div>
+  <p class="rank" id="rank"></p>
+  <p class="sub" style="margin-bottom:14px">คะแนนรวมทุกชุด <b id="grandA">0</b></p>
+  <table class="log">
+    <thead><tr><th>ข้อ</th><th>โจทย์</th><th>เวลา</th><th>คะแนน</th></tr></thead>
+    <tbody id="logBody"></tbody>
+  </table>
+  <p class="send" id="sendStatus"></p>
+  <div class="center hidden" id="retryWrap" style="margin-bottom:14px"><button id="btnRetry" type="button" class="ghost">ส่งคะแนนอีกครั้ง</button></div>
+  <p class="ask" id="askText">เล่นต่อชุดที่ 2 หรือไม่</p>
+  <div class="choices">
+    <button id="btnStop" type="button" class="ghost">หยุดเล่น</button>
+    <button id="btnContinue" type="button">เล่นต่อ</button>
+  </div>
+</section>
+
+<section id="final" class="card hidden">
+  <p class="sub">จบการเล่น</p>
+  <div class="big-score"><span id="grandB">0</span></div>
+  <p class="rank" id="finalRank"></p>
+  <table class="log">
+    <thead><tr><th>ชุด</th><th>คะแนน</th><th>ตอบถูก</th></tr></thead>
+    <tbody id="setBody"></tbody>
+  </table>
+  <p class="send" id="sendStatusF"></p>
+  <div class="center hidden" id="retryWrapF" style="margin-bottom:14px"><button id="btnRetryF" type="button" class="ghost">ส่งคะแนนอีกครั้ง</button></div>
+  <div class="choices">
+    <button id="btnChange" type="button" class="ghost">เปลี่ยนผู้เล่น</button>
+    <button id="btnAgain" type="button">เริ่มเล่นใหม่</button>
+  </div>
+</section>
+
+</main>
+<script>
+(function () {
+  // Paste the Web app URL from Google Apps Script between the quotes to send scores to the teacher's sheet.
+  // Leave it empty to play without sending anything.
+  var SCRIPT_URL = '';
+
+  var MAX_PAUSE = 3; // pauses allowed per set
+  var TOTAL = 10, LIMIT = 20;
+  var $ = function (id) { return document.getElementById(id); };
+
+  // worksheet items (b = sum, c = product), levels 1 to 4
+  var WS = {
+    1: [[5,4],[5,6],[6,9],[9,8],[7,10],[7,12],[11,18],[11,24],[11,30],[13,42]],
+    2: [[-4,3],[-4,4],[-6,5],[-5,6],[-9,8],[-7,10],[-7,12],[-11,18],[-10,24],[-13,40]],
+    3: [[2,-3],[3,-10],[1,-12],[7,-18],[2,-24],[-3,-4],[-3,-10],[-1,-30],[-5,-24],[-3,-54]],
+    4: [[0,-49],[15,56],[1,-72],[6,-72],[12,36],[-8,-48],[-7,-30],[-14,45],[-17,72],[-12,36]]
+  };
+  var POOL = [], seen = {};
+  function addItem(level, b, c, src) {
+    var key = b + ',' + c;
+    if (seen[key]) return;
+    seen[key] = true;
+    // find integers m, n with m+n=b and m*n=c
+    var m = null, n = null;
+    for (var x = -80; x <= 80 && m === null; x++) {
+      for (var y = x; y <= 80; y++) { if (x + y === b && x * y === c) { m = x; n = y; break; } }
+    }
+    if (m === null) return;
+    POOL.push({ level: level, b: b, c: c, p: m, q: n, src: src, d: Math.abs(c) + Math.abs(b) / 100 });
+  }
+  [1, 2, 3, 4].forEach(function (lv) { WS[lv].forEach(function (r) { addItem(lv, r[0], r[1], 'ws'); }); });
+  // generated extras in the same style
+  (function () {
+    var i, j;
+    for (i = 1; i <= 30; i++) for (j = i; j <= 30; j++) if (i * j <= 30 && i + j <= 30) addItem(1, i + j, i * j, 'gen');
+    for (i = 1; i <= 13; i++) for (j = i; j <= 13; j++) if (i * j <= 40 && i + j <= 13) addItem(2, -(i + j), i * j, 'gen');
+    for (i = 1; i <= 12; i++) for (j = 1; j <= 12; j++) {
+      var c3 = -i * j, b3 = j - i; // (-i) + j
+      if (i * j <= 54 && Math.abs(b3) >= 1 && Math.abs(b3) <= 7) addItem(3, b3, c3, 'gen');
+    }
+    for (i = 4; i <= 9; i++) addItem(4, 0, -i * i, 'gen');
+    for (i = -12; i <= 12; i++) for (j = i; j <= 12; j++) {
+      var c4 = i * j, b4 = i + j;
+      if (i !== 0 && j !== 0 && Math.abs(c4) >= 30 && Math.abs(c4) <= 72 && Math.abs(b4) <= 17) addItem(4, b4, c4, 'gen');
+    }
+  })();
+
+  var PLAN_MIXED = [2, 2, 2, 3, 3, 3, 4, 4, 4, 4]; // set 2 onward: negatives and mixed signs
+  var PLAN = PLAN_MIXED;
+  function mult() { return setNo === 1 ? 1 : 2; }
+  var LEVEL_NAME = { 1: 'ระดับ 1 เลขบวก', 2: 'ระดับ 2 เลขลบ', 3: 'ระดับ 3 c ติดลบ', 4: 'ระดับ 4 ผสม' };
+
+  function fmt(n, paren) {
+    if (n < 0) return paren ? '(−' + (-n) + ')' : '−' + (-n);
+    return '' + n;
+  }
+  function polyText(b, c) {
+    var t = 'x²';
+    if (b !== 0) t += b > 0 ? ' + ' + b + 'x' : ' − ' + (-b) + 'x';
+    t += c > 0 ? ' + ' + c : ' − ' + (-c);
+    return t;
+  }
+  function factorText(m, n) {
+    function f(v) { return v >= 0 ? '(x + ' + v + ')' : '(x − ' + (-v) + ')'; }
+    return f(m) + f(n);
+  }
+
+  var round, score, results, cur, startAt, raf, locked, paused = false, pauseAt = 0, pausesLeft = 0, used, setNo, setScores, questions;
+
+  function show(id) {
+    ['start', 'register', 'game', 'result', 'final'].forEach(function (s) { $(s).classList.toggle('hidden', s !== id); });
+  }
+
+  // questions come in random order; each set draws the right mix of levels, with few "times 1" pairs
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+  }
+
+  function buildSet() {
+    var groups = setNo === 1 ? [{ lv: 1, n: TOTAL }] : [{ lv: 2, n: 3 }, { lv: 3, n: 3 }, { lv: 4, n: 4 }];
+    var out = [], ones = 0, smallCount = {};
+    groups.forEach(function (g) {
+      var all = POOL.filter(function (it) { return it.level === g.lv; });
+      var chosen = [];
+      for (var k = 0; k < g.n; k++) {
+        var fresh = all.filter(function (it) { return used.indexOf(it.b + ',' + it.c) === -1 && chosen.indexOf(it) === -1; });
+        var strict = fresh.filter(function (it) {
+          var hasOne = Math.abs(it.p) === 1 || Math.abs(it.q) === 1;
+          var small = Math.min(Math.abs(it.p), Math.abs(it.q));
+          return !(hasOne && ones >= 1) && (smallCount[small] || 0) < 2;
+        });
+        var from = strict.length ? strict : (fresh.length ? fresh : all.filter(function (it) { return chosen.indexOf(it) === -1; }));
+        var ws = from.filter(function (it) { return it.src === 'ws'; });
+        if (ws.length && Math.random() < 0.5) from = ws;
+        var item = from[Math.floor(Math.random() * from.length)];
+        if (Math.abs(item.p) === 1 || Math.abs(item.q) === 1) ones++;
+        var sm = Math.min(Math.abs(item.p), Math.abs(item.q));
+        smallCount[sm] = (smallCount[sm] || 0) + 1;
+        used.push(item.b + ',' + item.c);
+        chosen.push(item);
+      }
+      out = out.concat(chosen);
+    });
+    return shuffle(out);
+  }
+
+  function levelName() { return setNo === 1 ? 'เลขบวก' : 'บวกลบผสม'; }
+
+  function pointsSum(arr) { return arr.reduce(function (s, r) { return s + r.pts; }, 0); }
+  function grand() { return setScores.reduce(function (s, v) { return s + v.score; }, 0); }
+
+  function pointsFor(sec) {
+    var base = sec < 5 ? 10 : sec < 10 ? 5 : sec < LIMIT ? 3 : 0;
+    return base * mult();
+  }
+
+  var advTimer = null, player = null, sessionId = '', lastPayload = null, lastPayloadF = null;
+
+  function submit(payload, statusId, wrapId, btnId) {
+    var st = $(statusId), wrap = $(wrapId);
+    wrap.classList.add('hidden');
+    st.className = 'send';
+    if (!SCRIPT_URL) { st.textContent = ''; return; }
+    st.textContent = 'กำลังส่งคะแนน...';
+    fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).then(function () {
+      st.textContent = 'ส่งคะแนนให้ครูแล้ว';
+    }, function () {
+      st.className = 'send fail';
+      st.textContent = 'ส่งคะแนนไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วกดส่งอีกครั้ง';
+      wrap.classList.remove('hidden');
+    });
+  }
+
+  function basePayload(type) {
+    return {
+      type: type, session: sessionId, grade: player.grade, room: player.room,
+      name: player.name, nick: player.nick, no: player.no
+    };
+  }
+
+  function newGame() {
+    setNo = 0; setScores = []; used = [];
+    sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    newSet();
+  }
+
+  function newSet() {
+    setNo++;
+    round = 0; score = 0; results = []; pausesLeft = MAX_PAUSE;
+    questions = buildSet();
+    $('setNo').textContent = setNo;
+    $('mult').classList.toggle('hidden', mult() === 1);
+    $('zl1').textContent = (10 * mult()) + ' คะแนน';
+    $('zl2').textContent = (5 * mult()) + ' คะแนน';
+    $('zl3').textContent = (3 * mult()) + ' คะแนน';
+    $('score').textContent = '0';
+    nextRound();
+  }
+
+  function nextRound() {
+    round++;
+    if (round > TOTAL) { finish(); return; }
+    cur = questions[round - 1];
+    locked = false;
+    paused = false;
+    $('pauseOv').classList.add('hidden');
+    updatePauseBtn();
+    $('qNo').textContent = round;
+    $('level').textContent = levelName(round);
+    $('cVal').textContent = fmt(cur.c);
+    $('bVal').textContent = fmt(cur.b);
+    $('poly').textContent = polyText(cur.b, cur.c);
+    $('m').value = ''; $('n').value = '';
+    $('feedback').innerHTML = '';
+    clearTimeout(advTimer);
+    show('game');
+    startAt = performance.now();
+    cancelAnimationFrame(raf);
+    tick();
+    $('m').focus();
+  }
+
+  function updatePauseBtn() {
+    var b = $('btnPause');
+    b.textContent = paused ? 'เล่นต่อ' : 'พัก (' + pausesLeft + ')';
+    b.disabled = locked || (!paused && pausesLeft <= 0);
+  }
+
+  function togglePause() {
+    if (locked) return;
+    if (!paused) {
+      if (pausesLeft <= 0) return;
+      pausesLeft--; paused = true; pauseAt = performance.now();
+      cancelAnimationFrame(raf);
+      $('pauseOv').classList.remove('hidden');
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    } else {
+      paused = false;
+      startAt += performance.now() - pauseAt;
+      $('pauseOv').classList.add('hidden');
+      tick();
+      if ($('m')) $('m').focus();
+    }
+    updatePauseBtn();
+  }
+
+  function tick() {
+    var sec = (performance.now() - startAt) / 1000;
+    if (sec >= LIMIT) { timeUp(); return; }
+    $('clock').textContent = (LIMIT - sec).toFixed(1);
+    $('needle').style.left = (sec / LIMIT * 100) + '%';
+    var pts = pointsFor(sec);
+    var w = $('worth');
+    w.className = 'worth w' + (pts / mult());
+    w.textContent = 'ตอนนี้ได้ ' + pts + ' คะแนน';
+    raf = requestAnimationFrame(tick);
+  }
+
+  function endRound(points, sec, solved) {
+    locked = true;
+    updatePauseBtn();
+    cancelAnimationFrame(raf);
+    score += points;
+    $('score').textContent = score;
+    results.push({ b: cur.b, c: cur.c, p: cur.p, q: cur.q, sec: sec, pts: points, solved: solved });
+    clearTimeout(advTimer);
+    advTimer = setTimeout(nextRound, solved ? 1800 : 3200);
+  }
+
+  function timeUp() {
+    $('clock').textContent = '0.0';
+    $('needle').style.left = '100%';
+    $('worth').className = 'worth w0';
+    $('worth').textContent = 'หมดเวลา';
+    endRound(0, LIMIT, false);
+    $('feedback').innerHTML =
+      '<div class="msg late">หมดเวลา ข้อนี้ได้ 0 คะแนน</div>' +
+      '<div class="detail">เฉลย ' + fmt(cur.p) + ' และ ' + fmt(cur.q) + ' แยกได้ ' + factorText(cur.p, cur.q) + '</div>';
+  }
+
+  function cleanNum(el) {
+    var v = el.value.replace(/[−–—]/g, '-').replace(/[^0-9-]/g, '');
+    var neg = v.charAt(0) === '-';
+    v = v.replace(/-/g, '');
+    el.value = (neg ? '-' : '') + v.slice(0, 2);
+  }
+
+  function check() {
+    if (locked || paused) return;
+    cleanNum($('m')); cleanNum($('n'));
+    var mv = $('m').value.trim(), nv = $('n').value.trim();
+    var fb = $('feedback');
+    if (mv === '' || mv === '-' || nv === '' || nv === '-') {
+      fb.innerHTML = '<div class="msg no">พิมพ์เลขให้ครบทั้ง 2 ช่องก่อน</div>';
+      (mv === '' || mv === '-' ? $('m') : $('n')).focus();
+      return;
+    }
+    var a = parseInt(mv, 10), b2 = parseInt(nv, 10);
+    var sec = (performance.now() - startAt) / 1000;
+    if (sec >= LIMIT) { timeUp(); return; }
+    var okProd = a * b2 === cur.c, okSum = a + b2 === cur.b;
+    if (okProd && okSum) {
+      var pts = pointsFor(sec);
+      $('worth').className = 'worth w' + (pts / mult());
+      $('worth').textContent = '+' + pts + ' คะแนน';
+      endRound(pts, sec, true);
+      fb.innerHTML = '<div class="msg ok pop">ถูกต้อง +' + pts + ' คะแนน</div>' +
+        '<div class="detail">' + factorText(a, b2) + ' ใช้เวลา ' + sec.toFixed(1) + ' วินาที</div>';
+    } else {
+      fb.innerHTML = '<div class="msg no">ยังไม่ถูก ลองใหม่</div>' +
+        '<div class="detail">' + fmt(a, true) + ' × ' + fmt(b2, true) + ' = ' + fmt(a * b2) + ' ' + (okProd ? '(ตรง c)' : '(ต้องได้ ' + fmt(cur.c) + ')') +
+        ' &nbsp;|&nbsp; ' + fmt(a, true) + ' + ' + fmt(b2, true) + ' = ' + fmt(a + b2) + ' ' + (okSum ? '(ตรง b)' : '(ต้องได้ ' + fmt(cur.b) + ')') + '</div>';
+      var row = $('answerRow');
+      row.classList.remove('shake');
+      void row.offsetWidth;
+      row.classList.add('shake');
+      $('m').select();
+    }
+  }
+
+  function finish() {
+    cancelAnimationFrame(raf);
+    var maxPts = 100 * mult();
+    $('finalScore').textContent = score;
+    $('maxScore').textContent = maxPts;
+    var solved = results.filter(function (r) { return r.solved; }).length;
+    setScores.push({ score: score, solved: solved, max: maxPts });
+    $('resSet').textContent = setNo;
+    $('grandA').textContent = grand();
+    lastPayload = basePayload('set');
+    lastPayload.setNo = setNo; lastPayload.score = score; lastPayload.max = maxPts; lastPayload.solved = solved; lastPayload.total = TOTAL;
+    submit(lastPayload, 'sendStatus', 'retryWrap');
+    $('askText').textContent = 'เล่นต่อชุดที่ ' + (setNo + 1) + ' หรือไม่';
+    var ratio = score / maxPts;
+    var rank = ratio >= 1 ? 'เต็มทุกข้อ สุดยอดนักแยกตัวประกอบ'
+      : ratio >= 0.8 ? 'แม่นมาก เกือบเต็มแล้ว'
+      : ratio >= 0.5 ? 'ทำได้ดี ฝึกความเร็วอีกนิด'
+      : ratio >= 0.2 ? 'เริ่มจับทางได้แล้ว'
+      : 'ลองท่องคู่คูณแล้วเล่นใหม่';
+    $('rank').textContent = rank;
+    $('logBody').innerHTML = results.map(function (r, i) {
+      var t = r.solved ? r.sec.toFixed(1) + ' วิ' : 'หมดเวลา';
+      return '<tr><td>' + (i + 1) + '</td><td>' + polyText(r.b, r.c) + '</td><td>' + t + '</td><td>' + r.pts + '</td></tr>';
+    }).join('');
+    show('result');
+    $('btnContinue').focus();
+  }
+
+  function showFinal() {
+    var total = grand();
+    $('grandB').textContent = total;
+    $('finalRank').textContent = 'เล่นทั้งหมด ' + setScores.length + ' ชุด';
+    $('setBody').innerHTML = setScores.map(function (s, i) {
+      return '<tr><td>' + (i + 1) + '</td><td>' + s.score + ' / ' + s.max + (i > 0 ? ' (×2)' : '') + '</td><td>' + s.solved + ' / ' + TOTAL + ' ข้อ</td></tr>';
+    }).join('');
+    lastPayloadF = basePayload('total');
+    lastPayloadF.sets = setScores.length;
+    lastPayloadF.score = total;
+    lastPayloadF.max = setScores.reduce(function (a, v) { return a + v.max; }, 0);
+    submit(lastPayloadF, 'sendStatusF', 'retryWrapF');
+    show('final');
+    $('btnAgain').focus();
+  }
+
+  $('btnPause').addEventListener('click', togglePause);
+  $('pauseResume').addEventListener('click', togglePause);
+  $('btnStart').addEventListener('click', function () { show('register'); });
+  $('btnChange').addEventListener('click', function () { show('register'); });
+  $('btnRetry').addEventListener('click', function () { submit(lastPayload, 'sendStatus', 'retryWrap'); });
+  $('btnRetryF').addEventListener('click', function () { submit(lastPayloadF, 'sendStatusF', 'retryWrapF'); });
+
+  var grade = '';
+  Array.prototype.forEach.call(document.querySelectorAll('.gbtn'), function (b) {
+    b.addEventListener('click', function () {
+      grade = b.getAttribute('data-g');
+      Array.prototype.forEach.call(document.querySelectorAll('.gbtn'), function (x) {
+        x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+      });
+      $('regErr').textContent = '';
+    });
+  });
+  $('regForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var room = $('room').value.trim(), name = $('fullName').value.trim();
+    var err = !grade ? 'เลือกระดับชั้นก่อน' : !room ? 'พิมพ์ห้องก่อน' : !name ? 'พิมพ์ชื่อจริงก่อน' : '';
+    if (err) { $('regErr').textContent = err; return; }
+    $('regErr').textContent = '';
+    player = { grade: grade, room: room, name: name, nick: $('nick').value.trim(), no: $('stuNo').value.trim() };
+    newGame();
+  });
+  $('btnAgain').addEventListener('click', newGame);
+  $('btnContinue').addEventListener('click', newSet);
+  $('btnStop').addEventListener('click', showFinal);
+  $('btnCheck').addEventListener('click', check);
+  ['m', 'n'].forEach(function (id) { $(id).addEventListener('input', function () { cleanNum($(id)); }); });
+  Array.prototype.forEach.call(document.querySelectorAll('.sign'), function (b) {
+    b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    b.addEventListener('click', function () {
+      var el = $(b.getAttribute('data-for'));
+      if (locked || paused) return;
+      cleanNum(el);
+      el.value = el.value.charAt(0) === '-' ? el.value.slice(1) : '-' + el.value;
+      el.focus();
+    });
+  });
+  $('btnCheck').addEventListener('mousedown', function (e) { e.preventDefault(); });
+  $('m').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('n').focus(); } });
+  $('n').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); check(); } });
+})();
+</script>
+</body>
+</html>
