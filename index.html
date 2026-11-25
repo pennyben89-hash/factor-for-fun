@@ -146,6 +146,8 @@ button.gbtn[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .opt { color: var(--ink-soft); font-weight: 400; }
 .send { text-align: center; font-size: 16px; color: var(--ink-soft); min-height: 24px; margin: 0 0 12px; }
 .send.fail { color: var(--bad); font-weight: 600; }
+.ansline { color: var(--good); font-weight: 600; font-size: 0.92em; }
+.pickline { color: var(--bad); font-weight: 600; font-size: 0.92em; }
 .ask { font-size: 24px; font-weight: 800; text-align: center; margin-bottom: 14px; }
 .choices { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
 button.ghost { background: #fff; color: var(--ink); }
@@ -633,7 +635,7 @@ button.ghost { background: #fff; color: var(--ink); }
     $('rank').textContent = rank;
     $('logBody').innerHTML = results.map(function (r, i) {
       var t = r.solved ? r.sec.toFixed(1) + ' วิ' : 'หมดเวลา';
-      return '<tr><td>' + (i + 1) + '</td><td>' + polyText(r.b, r.c) + '</td><td>' + t + '</td><td>' + r.pts + '</td></tr>';
+      return '<tr><td>' + (i + 1) + '</td><td>' + polyText(r.b, r.c) + '<div class="ansline">เฉลย ' + fmt(r.p) + ' และ ' + fmt(r.q) + ' แยกได้ ' + factorText(r.p, r.q) + '</div></td><td>' + t + '</td><td>' + r.pts + '</td></tr>';
     }).join('');
     show('result');
     $('btnContinue').focus();
